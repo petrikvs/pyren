@@ -621,8 +621,16 @@ class ELM:
 
         # check OBDLink
         elm_rsp = self.cmd("STI")
-        if elm_rsp and '?' not in elm_rsp:
-            firmware_version = elm_rsp.split(" ")[-1]
+        if elm_rsp and '?' not in elm_rsp and len(elm_rsp.split(" ")) == 2:
+            odblink_meta = elm_rsp.split(" ")
+            ic_type = odblink_meta[0]
+            firmware_version = odblink_meta[1]
+
+            if ic_type.startswith("STN1"):
+                mod_globals.elm_uart_buffer_size = 0x1ff
+            elif ic_type.startswith("STN2"):
+                mod_globals.elm_uart_buffer_size = 0x3ff
+
             try:
                 firmware_version = firmware_version.split(".")
                 version_number = int(''.join([re.sub(r'\D', '', version) for version in firmware_version]))
@@ -1372,12 +1380,22 @@ class ELM:
         if not all(c in string.hexdigits for c in command):
             return "HEX ERROR"
 
-        frsp = self.send_raw('STPX D:' + command + ',R:' + '1')
+        STPX = "STPX"
+        # Fix for limited UART Tx buffer size
+        # https://www.scantool.net/forum/index.php?topic=16631.0
+        frsp = ""
+        if len(f"{STPX} D:{command}") > mod_globals.elm_uart_buffer_size:
+            frsp = self.send_raw(f"{STPX} L:{str(int(len(command)/2))},R:1")
+            if "DATA>" not in frsp:
+                return ""
+            frsp = self.send_raw(command)
+        else:
+            frsp = self.send_raw(f"{STPX} D:{command},R:1")
 
         responses = []
 
         for s in frsp.split('\n'):
-            if s.strip()[:4] == "STPX":  # echo cancelation
+            if s.strip()[:4] == STPX:  # echo cancelation
                 continue
 
             s = s.strip().replace(' ', '')

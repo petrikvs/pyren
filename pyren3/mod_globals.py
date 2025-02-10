@@ -43,6 +43,8 @@ opt_ref       = ""       #alternative ref set for acf
 opt_mtc       = ""       #alternative mtc set for acf
 dumpName      = ""
 
+elm_uart_buffer_size = 0x1ff # STN1xxx UART Tx characters buffer size
+
 state_scan    = False
 
 currentDDTscreen = None
