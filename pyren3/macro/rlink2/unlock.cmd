@@ -10,9 +10,9 @@ at r0
 #
 # Press q for Exit
 #
-#if_key q end
+if_key q end
 _$hexValue
 wait 0.1
-#goto begin
-#:end
-#exit
+goto begin
+:end
+exit
