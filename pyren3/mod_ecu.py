@@ -582,12 +582,12 @@ class ECU:
         tb = tc
       
       if mod_globals.opt_csv_only:
-        responseHistory[datarefsRequestTime] = self.elm.rsp_cache #Collect data to generate a file
+        responseHistory[datarefsRequestTime] = self.elm.rsp_cache.copy() #Collect data to generate a file
 
       if mod_globals.opt_performance and self.elm.performanceModeLevel > 1:
         self.elm.currentScreenDataIds = self.getDataIds(self.elm.rsp_cache, self.DataIds)
-        if self.elm.currentScreenDataIds: #DataIds list is generated only at first data read pass in csv_only mode
-          displayedDataIds = self.elm.currentScreenDataIds #We save it for file generating function
+        if len(self.elm.currentScreenDataIds) > 0: #DataIds list is generated only at first data read pass in csv_only mode
+          displayedDataIds = self.elm.currentScreenDataIds.copy() #We save it for file generating function
 
       if kb.kbhit():
         c = kb.getch()
