@@ -115,8 +115,8 @@ def acf_MTC_generateDefaults( m, mtc ):
 
   #dumpn1 = mod_globals.mtcdir+'/dumps/'+str(int(time.time()))+'_'+ddtxml+'.txt'
   #dumpn2 = mod_globals.mtcdir+'/dumps/'+str(int(time.time()))+'_'+m['ecuname']+'.txt'
-  dumpn1 = mod_globals.mtcdir+'/dumps/000000_'+ddtxml+'.txt'
-  dumpn2 = mod_globals.mtcdir+'/dumps/000000_'+m['ecuname']+'.txt'
+  dumpn1 = mod_globals.mtcdir+'/dumps/0000000000_'+ddtxml+'.txt'
+  dumpn2 = mod_globals.mtcdir+'/dumps/0000000000_'+m['ecuname']+'.txt'
 
   df1 = open(dumpn1,'wt')
 
