@@ -167,7 +167,6 @@ def loadECUlist():
 
     return eculist
 
-
 class ddtProjects():
     def __init__(self):
         self.proj_path = 'vehicles/projects.xml'

@@ -138,8 +138,8 @@ class DDTECU():
     """ worker for rotary thread
         it makes periodic data read from """
     
-    while not self.rotaryTerminate.isSet():
-      while self.rotaryRunAlloved.isSet():
+    while not self.rotaryTerminate.is_set():
+      while self.rotaryRunAlloved.is_set():
         if not self.rotaryCommandsQueue.empty():
           req = self.rotaryCommandsQueue.get_nowait()
   

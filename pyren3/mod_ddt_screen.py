@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import gc
+import re
 import os
 import datetime
 import copy
 import time
+import subprocess
+from pathlib import Path
 
 from mod_utils import *
 import mod_db_manager
@@ -35,12 +38,9 @@ from mod_elm import dnat
 from mod_elm import pyren_time
 import xml.etree.ElementTree as et
 
-
-
 class screenSettings ():  # for future use.
     geometry = ''  # main window geometry
     scf = 1.0  # font scale coefficient
-
 
 class ButtonConfirmationDialog (tkinter.simpledialog.Dialog):
     def __init__(self, parent, text):
@@ -208,9 +208,6 @@ class FindDialog (tkinter.simpledialog.Dialog):
         self.choise = ''
         self.top.destroy ()
        
-
-
-
 class ListDialog (tkinter.simpledialog.Dialog):
     def __init__(self, parent, text, arr ):
         self.top = tk.Toplevel (parent)
@@ -268,6 +265,10 @@ class DDTScreen (tk.Frame):
     dObj = []  # objects for place_forget
     tObj = {}  # objects for text captions
     start = True
+    csv = False
+    csv_file = None
+    sortedValueKeys = []
+    csvValues = {}
     
     jid = None  # for after_cancel
     jdsu = None
@@ -297,7 +298,7 @@ class DDTScreen (tk.Frame):
         else:
             self.root = tk.Tk()
 
-        self.root.option_add ('*Dialog.msg.font', 'Courier\ New 12')
+        self.root.option_add ('*Dialog.msg.font', r'Courier\ New 12')
         # self.root.overrideredirect(True)
         self.root.geometry ("1024x768")
         tk.Frame.__init__ (self, self.root)
@@ -381,9 +382,12 @@ class DDTScreen (tk.Frame):
             # update variable in dValue
             if d in list(self.dValue.keys()):
                 if ':' in val:
-                    self.dValue[d].set(val.split(':')[1])
+                    _cv,_dv = val.split(':')
+                    self.dValue[d].set(_dv)
+                    self.csvValues[d] = _cv
                 else:
                     self.dValue[d].set(val)
+                    self.csvValues[d] = val
             
             # update variable in dInputs
             if d in list(self.iValue.keys()) and self.iValueNeedUpdate[d]:
@@ -450,8 +454,20 @@ class DDTScreen (tk.Frame):
             (req,rsp) = self.decu.rotaryResultsQueue.get_nowait()
             # request values update
             self.updateScreenValues(req,rsp)
+        
+        # write to csv
+        if self.csv and self.csv_file!=None:
+            csv_str = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            for k in self.sortedValueKeys:
+                if k in self.csvValues.keys():
+                    csv_str += ('\t' + self.csvValues[k])
+                else:
+                    csv_str += '\tNaN'
+            csv_str += '\n'
+            self.csv_file.write(csv_str)
+            self.csv_file.flush()
 
-        # re-launch update in x milliseconds
+        # re-launch update in "updatePeriod" milliseconds
         tb = pyren_time()
         self.jid = self.root.after (self.updatePeriod, self.updateScreen)
         self.tl = tb
@@ -997,6 +1013,30 @@ class DDTScreen (tk.Frame):
             if self.root is not None: self.root.destroy ()
         except:
             pass
+
+    def csv_save(self):
+        # No screen selected so nothing to write
+        if self.currentscreen == None or self.csv:
+            self.csv = False
+            if self.csv_file!=None:
+                self.csv_file.close()
+            self.csvButton.configure(text='CSV')
+        else:
+            #open new csv file
+            csv_file_name = './csv/' \
+                            + str(int(time.time()))+'_' \
+                            + self.currentscreen.attrib['Name'].replace(' ','_') \
+                            + '.csv'
+            self.csv_file = open( csv_file_name, "wt")
+            self.csv_file.write('sep=\\t\n')
+            self.sortedValueKeys = sorted(self.dValue.keys())
+            column_list = ['time'] + self.sortedValueKeys
+            self.csv_file.write('\t'.join(column_list)+'\n')
+            self.csvButton.configure(text='Pause')
+            self.csv = True
+            if os.path.isfile('./csv_monitor.py'):
+                subprocess.Popen([sys.executable, './csv_monitor.py', csv_file_name])
+        return
   
     def startStop(self):
         if self.start:
@@ -1099,6 +1139,156 @@ class DDTScreen (tk.Frame):
                 #self.loadSyntheticScreen (self.Screens[key])
                 #else:
                 self.loadScreen (self.Screens[key])
+
+        if restart:
+           self.startStop()
+
+        return
+
+    def create_custome_screen_xml(self, screen_name: str, parameters: list, cust_update ) -> et.Element:
+
+        NS_SCREENS = "http://www-diag.renault.com/2002/screens"
+
+        et.register_namespace('xmlns', 'http://www-diag.renault.com/2002/screens')
+
+        root = et.Element("xml", {
+            "xmlns:ns1": "http://www-diag.renault.com/2002/screens"
+        })
+
+        # Generator
+        generator = et.SubElement(root, "Generator", {
+            "name": "DDT2000 XML library",
+            "version": "2.2.0.0"
+        })
+
+        # Target
+        target = et.SubElement(root, "{http://www-diag.renault.com/2002/screens}Target", {
+            "xmlns": "http://www-diag.renault.com/2002/screens",
+            "xmlns:ns1": "http://www-diag.renault.com/2002/screens"
+        })
+
+        # Screen
+        screen = et.SubElement(target, f"{{{NS_SCREENS}}}Screen", {
+            "Name": screen_name,
+            "Color": "16777088",
+            "WindowState": "0",
+            "Width": "14000",
+            "Height": "1200",
+            "Update_gap_ms": cust_update
+        })
+
+        label_header = et.SubElement(screen, f"{{{NS_SCREENS}}}Label", {
+            "Text": screen_name,
+            "Color": "16744703",
+            "Alignment": "2"
+        })
+        rect_header = et.SubElement(label_header, f"{{{NS_SCREENS}}}Rectangle", {
+            "Left": "200",
+            "Top": "50",
+            "Height": "250",
+            "Width": "13600"
+        })
+        font_header = et.SubElement(label_header, f"{{{NS_SCREENS}}}Font", {
+            "Name": "Ms Sans Serif",
+            "Size": " 8",
+            "Bold": "0",
+            "Italic": "0",
+            "Color": "0"
+        })
+
+        top_offset = 400 
+        for param in parameters:
+            label = et.SubElement(screen, f"{{{NS_SCREENS}}}Label", {
+                "Text": param,
+                "Color": "8454143",
+                "Alignment": "0"
+            })
+            rect_label = et.SubElement(label, f"{{{NS_SCREENS}}}Rectangle", {
+                "Left": "200",
+                "Top": str(top_offset),
+                "Height": "250",
+                "Width": "6700"
+            })
+            font_label = et.SubElement(label, f"{{{NS_SCREENS}}}Font", {
+                "Name": "Ms Sans Serif",
+                "Size": " 8",
+                "Bold": "0",
+                "Italic": "0",
+                "Color": "0"
+            })
+
+            display = et.SubElement(screen, f"{{{NS_SCREENS}}}Display", {
+                "Width": "0",
+                "Color": "8454143",
+                "DataName": param,
+                "RequestName": self.decu.req4data[param]
+            })
+            rect_display = et.SubElement(display, f"{{{NS_SCREENS}}}Rectangle", {
+                "Left": "7100",
+                "Top": str(top_offset),
+                "Height": "250",
+                "Width": "6700"
+            })
+            font_display = et.SubElement(display, f"{{{NS_SCREENS}}}Font", {
+                "Name": "Ms Sans Serif",
+                "Size": " 8",
+                "Bold": "0",
+                "Italic": "0",
+                "Color": "0"
+            })
+
+            top_offset += 300
+
+        return root 
+
+    def loadCustomScreen(self):
+
+        restart = False
+        if self.start:
+           self.startStop()
+           restart = True
+
+        fname = ''
+        fname = tkinter.filedialog.askopenfilename( defaultextension=".txt",
+                                                filetypes=[("TXT files", ".txt")],
+                                                initialdir=".",
+                                                title="file with list of parameters")
+        
+        if len(fname):
+            fprm = open(fname,'rt')
+        else:
+            return
+        
+        lprm = fprm.read()
+        lprm = re.split(r'[ \t\n,;]+', lprm)
+        lprm = [prm.strip() for prm in lprm if prm.strip() in self.decu.datas.keys()]
+        act_prm = []
+        cust_update = self.updatePeriod
+        for prm in lprm:
+            prm = prm.strip()
+            if prm.startswith('#'):
+                if 'update:' in prm:
+                    match = re.search(r'^#[ \t]*update[ \t]*:[ \t]*(\d+)', prm)  # Находим последовательность цифр после '#update:'
+                    if match:
+                        cust_update = int(match.group(1))
+                continue
+            if prm in self.decu.datas.keys():
+                act_prm.append(prm)
+        
+        cst_name = Path(fname).stem
+        cst_xml = self.create_custome_screen_xml(cst_name, act_prm, cust_update )
+        #xml_str = et.tostring(cst_scr, encoding="unicode",)
+        #print(xml_str)
+
+        ns = {'ns0': 'http://www-diag.renault.com/2002/ECU',
+              'ns1': 'http://www-diag.renault.com/2002/screens'}
+        
+        cst_scr = cst_xml.find(".//ns1:Screen", ns)
+
+        iid = self.tree.insert('custom_screens', "end", text=cst_name)
+        self.Screens[iid] = cst_scr
+
+        self.loadScreen (self.Screens[iid])
 
         if restart:
            self.startStop()
@@ -1221,6 +1411,7 @@ class DDTScreen (tk.Frame):
         
         self.toolsmenu = tk.Menu (self.menubar, tearoff=0)
         self.toolsmenu.add_command (label="Make torque PIDs", command=self.torqpids, accelerator="Ctrl+t")
+        self.toolsmenu.add_command (label="Load custom screen", command=self.loadCustomScreen )
         self.toolsmenu.add_command (label="Find", command=self.find, accelerator="Ctrl+f")
         self.toolsmenu.add_command (label="Clear logs", command=self.clearLogs, accelerator="Ctrl+k")
         self.toolsmenu.add_command (label="Save logs to file", command=self.saveLogs, accelerator="Ctrl+s")
@@ -1246,7 +1437,7 @@ class DDTScreen (tk.Frame):
         
         self.settingsmenu = tk.Menu (self.menubar, tearoff=0)
         self.settingsmenu.add_separator ()
-        self.settingsmenu.add_checkbutton (label="Tranlate", onvalue=True, offvalue=False, variable=self.translated,
+        self.settingsmenu.add_checkbutton (label="Translate", onvalue=True, offvalue=False, variable=self.translated,
                                            command=self.repaint)
         self.settingsmenu.add_separator ()
         self.settingsmenu.add_checkbutton (label="Prefer Inputs from ECU", onvalue=True, offvalue=False,
@@ -1308,6 +1499,8 @@ class DDTScreen (tk.Frame):
         btnFrame.pack (side=tk.TOP, fill=tk.X)
         self.exitButton = tkinter.ttk.Button (btnFrame, text="Exit", command=self.exit)
         self.exitButton.pack (side=tk.RIGHT, expand=True)
+        self.csvButton = tkinter.ttk.Button (btnFrame, text="CSV", command=self.csv_save)
+        self.csvButton.pack (side=tk.LEFT, expand=True)
         self.startStopButton = tkinter.ttk.Button (btnFrame, text="Stop", command=self.startStop)
         self.startStopButton.pack (side=tk.LEFT, expand=True)
         
@@ -1332,6 +1525,8 @@ class DDTScreen (tk.Frame):
             if self.decu.requests[req].SentBytes[:2] in ['21','22']:
                 iid = self.tree.insert('ddt_all_commands', "end", text=req)
                 self.Screens[iid] = req
+
+        self.tree.insert("", "end", 'custom_screens', text='custom_screens', open=True)
 
         self.tree.bind ("<<TreeviewSelect>>", self.OnTreeClick)
         self.tree.pack (side=tk.BOTTOM, fill=tk.BOTH, expand=True)
@@ -1363,11 +1558,13 @@ class DDTScreen (tk.Frame):
         
         ######################################################################################
         
-        if os.name == 'posix':
-            self.ddt.bind ("<Button-2>", self.rightButtonClicked)
-        else:
-            self.ddt.bind ("<Button-3>", self.rightButtonClicked)
-        
+        #if os.name == 'posix':
+        #    self.ddt.bind ("<Button-2>", self.rightButtonClicked)
+        #else:
+        #    self.ddt.bind ("<Button-3>", self.rightButtonClicked)
+        self.ddt.event_add('<<RightClick>>', '<Button-2>', '<Button-3>')
+        self.ddt.bind('<<RightClick>>', self.rightButtonClicked)
+
         # self.ddt.pack(fill=tk.BOTH, expand=True)
         self.ddtfrm.bind ("<Configure>", self.confFrm)
         self.ddtcnv.bind ("<Configure>", self.confDdt)
@@ -1423,6 +1620,13 @@ class DDTScreen (tk.Frame):
         self.expertmode.set(False)
         self.changeMode()
 
+        # stop csv writing by defining self.currentscreen = None
+        self.sortedValueKeys = []
+        self.csvValues = {}
+        self.currentscreen = None
+        self.csv_save()
+
+        # new currentscreen
         self.currentscreen = scr
 
         # check if it synthetic screen
@@ -1451,6 +1655,8 @@ class DDTScreen (tk.Frame):
         scr_w = int (scr.attrib["Width"])
         scr_h = int (scr.attrib["Height"])
         bg_color = scr.attrib["Color"]
+        if 'Update_gap_ms' in scr.attrib.keys():
+            self.updatePeriod = scr.attrib["Update_gap_ms"]
         
         scx = 1  # scale X
         scy = 1  # scale Y
@@ -1518,11 +1724,6 @@ class DDTScreen (tk.Frame):
         self.ddtcnv.xview_moveto (0)
         self.ddtcnv.yview_moveto (0)
         
-        if os.name == 'posix':
-            os_event = "<Button-2>"
-        else:
-            os_event = "<Button-3>"
-
         # load labels (just descriptions of fields)
         labels = scr.findall ("ns1:Label", ns)
         if len(labels):
@@ -1704,7 +1905,7 @@ class DDTScreen (tk.Frame):
                 obj = tk.Label (frame, text=self.dValue[xText], relief=tk.GROOVE, borderwidth=1, font=lFont,
                                 textvariable=self.dValue[xText])
                 
-                obj.bind (os_event, lambda event, tag=xText: self.rightButtonClicked (event, tag))
+                obj.bind ('<<RightClick>>', lambda event, tag=xText: self.rightButtonClicked (event, tag))
                 
                 obj.place (width=xrWidth - xWidth, height=xrHeight)
                 self.dObj.append (obj)
@@ -1796,7 +1997,7 @@ class DDTScreen (tk.Frame):
                     self.iValue[xText].set ('Enter here')
                     obj = tk.Entry (frame, relief=tk.GROOVE, borderwidth=1, font=lFont, textvariable=self.iValue[xText])
                 
-                obj.bind (os_event, lambda event, tag=xText: self.rightButtonClicked (event, tag))
+                obj.bind ('<<RightClick>>', lambda event, tag=xText: self.rightButtonClicked (event, tag))
                 
                 obj.place (width=xrWidth - xWidth, height=xrHeight)
                 self.dObj.append (obj)
@@ -1961,10 +2162,7 @@ class DDTScreen (tk.Frame):
         self.ddtcnv.xview_moveto(0)
         self.ddtcnv.yview_moveto(0)
 
-        if os.name == 'posix':
-            os_event = "<Button-2>"
-        else:
-            os_event = "<Button-3>"
+        self.ddt.event_add('<<RightClick>>', '<Button-2>', '<Button-3>')
 
         xfSize = str(int(float(20) * self.scf))
         lFont = tkinter.font.Font(family="Arial", size=xfSize)
@@ -2011,7 +2209,7 @@ class DDTScreen (tk.Frame):
             obj = tk.Label(frame, text=self.dValue[xText], relief=tk.GROOVE, borderwidth=1, font=lFont,
                            textvariable=self.dValue[xText])
 
-            obj.bind(os_event, lambda event, tag=xText: self.rightButtonClicked(event, tag))
+            obj.bind('<<RightClick>>', lambda event, tag=xText: self.rightButtonClicked(event, tag))
 
             if len(wc)==0:
                 obj.place(width=max_x // 2, height=35)
