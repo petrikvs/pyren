@@ -128,7 +128,7 @@ def pars_macro( file ):
           macro = {}
           var = {}
           return
-      m = re.search('\$\S+\s*=\s*\S+', l)
+      m = re.search(r'\$\S+\s*=\s*\S+', l)
       if m and macroname=='':
         #variable definition
         r = m.group(0).replace(' ', '').replace('\t', '')
@@ -724,7 +724,7 @@ def proc_line( l, elm ):
         return
 
     # find veriable usage
-    m = re.search('.+(\$\S+)', l)
+    m = re.search(r'.+(\$\S+)', l)
     if m:
         while m:
             vu = m.group(1)
@@ -733,10 +733,10 @@ def proc_line( l, elm ):
             else:
                 print('Error: unknown variable', vu)
                 return
-            m = re.search('.+(\$\S+)', l)
+            m = re.search(r'.+(\$\S+)', l)
         print( "#(subst)", l)
 
-    m = re.search('\$\S+\s*=\s*\S+', l)
+    m = re.search(r'\$\S+\s*=\s*\S+', l)
     if m:
         # find variable definition
         r = m.group(0).replace(' ', '').replace('\t', '')
