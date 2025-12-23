@@ -382,7 +382,7 @@ class DDTScreen (tk.Frame):
             # update variable in dValue
             if d in list(self.dValue.keys()):
                 if ':' in val:
-                    _cv,_dv = val.split(':')
+                    _cv,_dv = val.split(':', maxsplit=1)
                     self.dValue[d].set(_dv)
                     self.csvValues[d] = _cv
                 else:
