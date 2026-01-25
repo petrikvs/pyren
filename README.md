@@ -180,9 +180,7 @@ If you don't have CLIP installed then you may use prepared archives in zip with 
 Install pyren
 ```
 cd c:\CLIP\Data\GenAppli\
-git clone git@gitlab.com:py_ren/pyren.git
-cd pyren
-git branch pyren3
+git clone -b pyren3 https://gitlab.com/py_ren/pyren.git
 ```
 or just download it
 
