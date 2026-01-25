@@ -218,24 +218,34 @@ Please install **python3-tk** package first.
 
 For running under MacOS or Linux you need just to copy the same directory tree as in Windows installation above
 
-## Installation on Android
+## Installation on New Android Devices with 64-bit CPU
 
-1. Install SL4A and Py4A. (https://github.com/kuri65536/python-for-android/blob/master/README.md)
-2. Copy DB folders and the pyren into sl4a/scripts. You have to get the next direcotry tree
+1. Install Termux from the official website: [https://termux.dev/en/](https://termux.dev/en/).
+2. Install Python 3 in Termux and clone the `pyren3` branch:
+```
+~ $ pkg install python3
+~ $ git clone -b pyren3 https://gitlab.com/py_ren/pyren.git
+```
+3. Copy your database file (pyrendata_XXX.zip) into the pyren directory. The resulting directory structure should be as follows:
 
 ```
-sl4a/scripts
-|- EcuRenault           
-|- Location             
-|- Vehicles             
+pyren    
+|- pyrendata_XXX.zip             
 |- pyren3              
 |   |- pyren3.py
 ...    ...
 |   |- <other modules>
-|- _pyren_launcher.py   
+|- main.py   
 ```
-**Another alternative is to install qpyren3. It's an apk file compatible with this pyren3 and DBs.**
+4. Run the script pyren3/pyren3.py and connect to a Wi-Fi ELM327 adapter.
+Note: Other ELM327 connection types (e.g., Bluetooth or USB) are not supported in Termux.
 
+```
+~ $ ./pyren3.py -p 192.168.0.10:35000
+```
+
+## Installation on Older Android Devices
+For older devices, it is recommended to use qpyren3, which is provided as a standalone APK file. This version is compatible with the same pyren3 codebase and database files (pyrendata_XXX.zip).
 
 # User guide
 
