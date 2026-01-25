@@ -5,6 +5,8 @@ import mod_globals
 import mod_db_manager
 
 mod_globals.os = os.name
+if "com.termux" in os.environ.get("PREFIX", ""):
+    mod_globals.os = 'android'
 
 os.chdir(os.path.dirname(os.path.realpath(sys.argv[0])))
 

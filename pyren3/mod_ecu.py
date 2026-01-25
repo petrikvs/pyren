@@ -1054,7 +1054,7 @@ class ECU:
         for st in self.States:
           if not self.States[st].agcdRef.endswith('FF') and self.States[st].agcdRef.startswith('ET'):
             tempDict[st] = self.States[st].codeMR
-        sortedStates = sorted(list(tempDict.items()), key=lambda x:[int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', x[1])])
+        sortedStates = sorted(list(tempDict.items()), key=lambda x:[int(t) if t.isdigit() else t.lower() for t in re.split('(\\d+)', x[1])])
         for st in sortedStates:
           if self.States[st[0]].mnemolist:
             if self.Mnemonics[self.States[st[0]].mnemolist[0]].serviceID:
@@ -1554,8 +1554,8 @@ def main():
   prn.write( 'volumetricEfficiency=85.0\n' )
   prn.write( 'weight=1400.0\n' )
   prn.write( 'odoMeter=0.0\n' )
-  prn.write( 'adapterName=OBDII [00\:00\:00\:00\:00\:0]\n' )
-  prn.write( 'adapter=00\:00\:00\:00\:00\:00\n' )
+  prn.write( 'adapterName=OBDII [00\\:00\\:00\\:00\\:00\\:00]\n' )
+  prn.write( 'adapter=00\\:00\\:00\\:00\\:00\\:00\n' )
   prn.write( 'boostAdjust=0.0\n' )
   prn.write( 'mpgAdjust=1.0\n' )
   prn.write( 'fuelCost=0.18000000715255737\n' )
