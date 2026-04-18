@@ -70,3 +70,5 @@ language_dict = {}
 vin = ""
 
 doc_server_proc = None
+
+ui = None  # set by mod_ui.init_default() or by an alternate backend

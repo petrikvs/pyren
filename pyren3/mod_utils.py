@@ -19,6 +19,7 @@ import signal
 import atexit
 import subprocess
 import mod_globals
+import mod_ui  # noqa: F401  (side effect: installs default TerminalUIBackend into mod_globals.ui)
 try:
     import webbrowser
 except:
@@ -133,123 +134,14 @@ class KBHit:
                 pass
             return dr != []
      
-def Choice(list, question ):
-  '''Util for make simple choice'''
-  d = {};
-  c = 1
-  exitNumber = 0
-  for s in list:
-    if s.lower()=='<up>' or s.lower()=='<exit>':
-      exitNumber = c
-      print("%-2s - %s" % ('Q', pyren_encode(s)))
-      d['Q']=s
-    else:
-      print("%-2s - %s" % (c, pyren_encode(s)))
-      d[str(c)]=s
-    c = c+1
-  
-  while (True):
-    try:
-      ch = input(question)
-    except (KeyboardInterrupt, SystemExit):
-        print()
-        print() 
-        sys.exit()
-    if ch=='q': ch = 'Q'
-    if ch=='cmd': mod_globals.opt_cmd = True
-    if ch in d.keys():
-      return [d[ch],ch]
+def Choice(list, question):
+  return mod_globals.ui.choose(list, question)
 
-def ChoiceLong(list, question, header = '' ):
-  '''Util for make choice from long list'''
-  d = {};
-  c = 1
-  exitNumber = 0
-  page = 0
-  page_size = 20
+def ChoiceLong(list, question, header=''):
+  return mod_globals.ui.choose_long(list, question, header)
 
-  for s in list:
-    if s.lower()=='<up>' or s.lower()=='<exit>':
-      exitNumber = c
-      d['Q']=s
-    else:
-      d[str(c)]=s
-    c = c+1
-
-  while( 1 ):
-
-    clearScreen()
-    #os.system('cls' if os.name == 'nt' else 'clear')      # clear screen
-    #print chr(27)+"[2J"+chr(27)+"[;H",                    # clear ANSI screen (thanks colorama for windows)
-
-    if len( header ): print(pyren_encode(header))
-
-    c = page*page_size 
-    for s in list[page*page_size:(page+1)*page_size]:
-      c = c + 1
-      if s.lower()=='<up>' or s.lower()=='<exit>':
-        print("%-2s - %s" % ('Q', pyren_encode(s)))
-      else:
-        print("%-2s - %s" % (c, pyren_encode(s)))
-
-    if len(list)>page_size:
-      if page>0:
-        print("%-2s - %s" % ('P', '<prev page>'))
-      if (page+1)*page_size<len(list):
-        print("%-2s - %s" % ('N', '<next page>'))
-      
-    while (True):
-      try:
-        ch = input(question)
-      except (KeyboardInterrupt, SystemExit):
-        print()
-        print() 
-        sys.exit()
-      
-      if ch=='q': ch = 'Q'
-      if ch=='p': ch = 'P'
-      if ch=='n': ch = 'N'
-      
-      if ch=='N' and (page+1)*page_size<len(list):
-        page = page + 1
-        break
-      if ch=='P' and page>0:
-        page = page - 1
-        break
-
-      if ch=='cmd': mod_globals.opt_cmd = True
-      if ch in d.keys():
-        return [d[ch],ch]
-
-def ChoiceFromDict(dict, question, showId = True ):
-  '''Util for make choice from dictionary'''
-  d = {};
-  c = 1
-  exitNumber = 0
-  for k in sorted(dict.keys()):
-    s = dict[k]
-    if k.lower()=='<up>' or k.lower()=='<exit>':
-      exitNumber = c
-      print("%s - %s" % ('Q',pyren_encode(s)))
-      d['Q']=k
-    else:
-      if showId:
-        print("%s - (%s) %s" % (c,pyren_encode(k),pyren_encode(s)))
-      else:
-        print("%s - %s" % (c,pyren_encode(s)))      
-      d[str(c)]=k
-    c = c+1
-  
-  while (True):
-    try:
-      ch = input(question)
-    except (KeyboardInterrupt, SystemExit):
-        print()
-        print() 
-        sys.exit()
-    if ch=='q': ch = 'Q'
-    if ch in list(d.keys()):
-      return [d[ch],ch]
+def ChoiceFromDict(dict, question, showId=True):
+  return mod_globals.ui.choose_from_dict(dict, question, showId)
       
 def pyren_encode( inp ):
   return inp
@@ -272,10 +164,7 @@ def pyren_decode_i( inp ):
     return inp.decode(sys.stdout.encoding, errors='ignore')
     
 def clearScreen():
-  # https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
-  # [2J   - clear entire screen
-  # [x;yH - move cursor to x:y
-  sys.stdout.write(chr(27)+"[2J"+chr(27)+"[;H")
+  mod_globals.ui.clear()
 
 def upScreen():
   sys.stdout.write(chr(27)+"[;H")
