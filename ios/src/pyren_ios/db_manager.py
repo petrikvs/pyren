@@ -66,10 +66,11 @@ class DatabaseManager:
         return None
 
     def import_zip(self, src: Path, kind: str) -> Path:
-        """Copy src into work_dir, renamed to match pyren's glob pattern.
+        """Place src into work_dir, renamed to match pyren's glob pattern.
 
-        Removes any pre-existing zip of the same kind so pyren picks up
-        the new one on next launch.
+        If src is already inside work_dir the file is renamed in place
+        (no copy), otherwise it's copied over. Any pre-existing zip of
+        the same kind is removed so pyren picks up the newest import.
         """
         if kind == "clip":
             prefix = "pyrendata"
@@ -81,15 +82,39 @@ class DatabaseManager:
         if src.name.startswith(prefix) and src.name.endswith(".zip"):
             dest_name = src.name
         else:
-            # Keep original stem as suffix so the user can tell versions apart.
             dest_name = f"{prefix}_{src.stem}.zip"
 
+        dest = self._work_dir / dest_name
         for old in self._work_dir.glob(f"{prefix}*.zip"):
+            if old.resolve() == src.resolve() or old == dest:
+                continue
             try:
                 old.unlink()
             except OSError:
                 pass
 
-        dest = self._work_dir / dest_name
-        shutil.copyfile(src, dest)
+        if src.resolve() == dest.resolve():
+            return dest
+        if src.parent.resolve() == self._work_dir.resolve():
+            src.rename(dest)
+        else:
+            shutil.copyfile(src, dest)
         return dest
+
+    def auto_classify_pending(self) -> list[tuple[Path, str]]:
+        """Pick up any *.zip dropped into work_dir via the Files app and
+        rename it to pyren's expected pattern.
+
+        Returns a list of (final_path, kind) for zips that were adopted.
+        Leaves unclassifiable zips alone.
+        """
+        adopted: list[tuple[Path, str]] = []
+        for z in sorted(self._work_dir.glob("*.zip")):
+            if z.name.startswith("pyrendata") or z.name.startswith("DDT2000data"):
+                continue
+            kind = self.classify(z)
+            if kind is None:
+                continue
+            final = self.import_zip(z, kind)
+            adopted.append((final, kind))
+        return adopted

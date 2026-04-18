@@ -279,69 +279,43 @@ class PyRenApp(toga.App):
             self._ddt_status.text = "DDT: (not imported)"
 
     def _on_rescan_pressed(self, widget) -> None:
+        # Adopt anything the user dropped into Documents via the Files app.
+        adopted = self._db_manager.auto_classify_pending()
+        for final, kind in adopted:
+            self.ui_append_log(f"Imported {kind.upper()}: {final.name}\n")
         self._refresh_db_status()
 
     async def _on_import_clip(self, widget) -> None:
-        await self._import_flow("clip")
+        await self._show_import_instructions("CLIP", "pyrendata")
 
     async def _on_import_ddt(self, widget) -> None:
-        await self._import_flow("ddt")
+        await self._show_import_instructions("DDT", "DDT2000data")
 
-    async def _import_flow(self, expected_kind: str) -> None:
-        """Pick a zip, classify it, copy into the work dir."""
-        try:
-            picked = await self.main_window.dialog(
-                toga.OpenFileDialog(
-                    title=f"Select {expected_kind.upper()} zip",
-                    file_types=["zip"],
-                )
+    async def _show_import_instructions(self, label: str, prefix: str) -> None:
+        """iOS Toga doesn't implement OpenFileDialog, so importing a
+        database on-device means dropping the zip into the app's
+        Documents folder via the iOS Files app (AirDrop, Share Sheet,
+        iCloud Drive, Save to Files...). We auto-classify and rename
+        zips on Rescan so the user doesn't have to rename them.
+        """
+        # Opportunistic rescan first — maybe they already dropped the file.
+        self._on_rescan_pressed(None)
+        await self.main_window.dialog(
+            toga.InfoDialog(
+                f"Import {label} database",
+                (
+                    "iOS doesn't let apps open a file picker outside their "
+                    "sandbox, so imports go through the Files app:\n\n"
+                    "1. Open the Files app.\n"
+                    "2. Navigate to 'On My iPhone › PyRen'.\n"
+                    "3. Drop the zip there (AirDrop, Share Sheet, or "
+                    "'Save to Files').\n"
+                    "4. Come back and tap Rescan.\n\n"
+                    f"PyRen will auto-detect the zip's contents and rename "
+                    f"it to {prefix}_*.zip so the engine picks it up."
+                ),
             )
-        except Exception as exc:  # noqa: BLE001
-            await self.main_window.dialog(
-                toga.ErrorDialog(
-                    "File picker unavailable",
-                    (
-                        f"{exc!r}\n\n"
-                        "Drop the zip into the PyRen folder via the iOS "
-                        "Files app (AirDrop, iCloud, Share Sheet), then "
-                        "tap Rescan."
-                    ),
-                )
-            )
-            return
-        if not picked:
-            return
-
-        src = Path(str(picked))
-        kind = self._db_manager.classify(src)
-        if kind is None:
-            await self.main_window.dialog(
-                toga.ErrorDialog(
-                    "Unrecognised zip",
-                    "The selected zip doesn't look like a CLIP "
-                    "(pyrendata) or DDT database.",
-                )
-            )
-            return
-        if kind != expected_kind:
-            await self.main_window.dialog(
-                toga.InfoDialog(
-                    "Kind mismatch",
-                    f"Detected a {kind.upper()} zip while importing as "
-                    f"{expected_kind.upper()}; importing as {kind.upper()}.",
-                )
-            )
-
-        try:
-            dest = self._db_manager.import_zip(src, kind)
-        except Exception as exc:  # noqa: BLE001
-            await self.main_window.dialog(
-                toga.ErrorDialog("Import failed", repr(exc))
-            )
-            return
-
-        self._refresh_db_status()
-        self.ui_append_log(f"Imported {kind.upper()}: {dest.name}\n")
+        )
 
     # ------------------------------------------------------------------
     # DDT WebView bridge (JS <-> Python)
