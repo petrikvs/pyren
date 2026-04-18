@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import xml.etree.ElementTree as et
 import mod_globals
 import mod_db_manager
@@ -9,7 +10,9 @@ from operator import itemgetter
 from copy import deepcopy
 
 serial = None
-if mod_globals.os != 'android':
+# Skip pyserial on iOS: list_ports_posix writes a noisy stderr warning
+# before failing to import on unknown platforms.
+if mod_globals.os != 'android' and sys.platform != 'ios':
     try:
         import serial
     except ImportError:

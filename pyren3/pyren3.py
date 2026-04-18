@@ -43,7 +43,10 @@ else:
       pass
   
 list_ports = None
-if mod_globals.os != 'android':
+# iOS has no serial ports; pyserial's list_ports_posix writes a warning to
+# stderr before raising ImportError on unknown platforms. Skip the import
+# entirely there.
+if mod_globals.os != 'android' and sys.platform != 'ios':
   try:
     import serial
     from serial.tools  import list_ports

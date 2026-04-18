@@ -31,7 +31,10 @@ except:
 # serial-port use is already guarded by port-type checks elsewhere.
 serial = None
 list_ports = None
-if mod_globals.os != 'android':
+# iOS has no TTYs; pyserial's list_ports_posix prints a noisy warning to
+# stderr before raising ImportError on unknown platforms. Skip the import
+# entirely when we know there are no serial ports to enumerate.
+if mod_globals.os != 'android' and sys.platform != 'ios':
     try:
         import serial  # sudo easy_install pyserial
         from serial.tools import list_ports
