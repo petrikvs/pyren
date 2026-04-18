@@ -54,7 +54,10 @@ class PyRenApp(toga.App):
     def startup(self) -> None:
         self._worker: threading.Thread | None = None
         self._pending_answer_cb = None
+        self._ddt_renderer = None
+        self._ddt_poll_handle = None
 
+        # --- Session tab -------------------------------------------------
         self._log = toga.MultilineTextInput(
             readonly=True,
             style=Pack(flex=1, padding=4),
@@ -92,13 +95,33 @@ class PyRenApp(toga.App):
             children=[self._port_input, self._connect_btn],
             style=Pack(direction=ROW),
         )
-        root = toga.Box(
+        session_tab = toga.Box(
             children=[header, self._status_label, self._log, self._prompt_box],
             style=Pack(direction=COLUMN),
         )
 
+        # --- DDT tab (WebView) ------------------------------------------
+        ddt_html_path = Path(__file__).resolve().parent / "web" / "ddt.html"
+        self._ddt_webview = toga.WebView(
+            url=ddt_html_path.as_uri() if ddt_html_path.exists() else "",
+            style=Pack(flex=1),
+        )
+        ddt_tab = toga.Box(
+            children=[self._ddt_webview],
+            style=Pack(direction=COLUMN),
+        )
+
+        # Tabbed container — iOS renders this as a UITabBar.
+        self._tabs = toga.OptionContainer(
+            content=[
+                ("Session", session_tab),
+                ("DDT", ddt_tab),
+            ],
+            style=Pack(flex=1),
+        )
+
         self.main_window = toga.MainWindow(title=self.formal_name)
-        self.main_window.content = root
+        self.main_window.content = self._tabs
         self.main_window.show()
 
     # ------------------------------------------------------------------
@@ -164,6 +187,72 @@ class PyRenApp(toga.App):
         cb(answer)
 
     # ------------------------------------------------------------------
+    # DDT WebView bridge (JS <-> Python)
+    # ------------------------------------------------------------------
+    def _ddt_inject_bridge_js(self) -> None:
+        """Replace window.webkit.messageHandlers.pyren with an in-page
+        queue that Python drains via evaluate_javascript polling.
+
+        Toga's WebView doesn't yet expose a cross-platform native message
+        handler API, so we funnel every outbound JS action into
+        window._pyrenOutbox[] and have the host pull from it.
+        """
+        js = (
+            "window._pyrenOutbox = window._pyrenOutbox || [];"
+            "if (!window.webkit) { window.webkit = {}; }"
+            "window.webkit.messageHandlers = window.webkit.messageHandlers || {};"
+            "window.webkit.messageHandlers.pyren = {"
+            "  postMessage: function(m){ window._pyrenOutbox.push(JSON.stringify(m)); }"
+            "};"
+        )
+        try:
+            self._ddt_webview.evaluate_javascript(js)
+        except Exception:
+            pass
+
+    def _ddt_poll_outbox(self) -> None:
+        """Drain the JS outbox and dispatch messages to the renderer."""
+        if self._ddt_renderer is None:
+            return
+        js = (
+            "(function(){var q=window._pyrenOutbox||[];"
+            "window._pyrenOutbox=[];return JSON.stringify(q);})()"
+        )
+
+        def on_result(value):
+            try:
+                import json
+                arr = json.loads(value) if value else []
+                for raw in arr:
+                    self._ddt_renderer.handle_incoming(raw)
+            except Exception:
+                pass
+
+        try:
+            self._ddt_webview.evaluate_javascript(js, on_result=on_result)
+        except TypeError:
+            # Older Toga versions: evaluate_javascript(js) only, no callback.
+            try:
+                self._ddt_webview.evaluate_javascript(js)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Reschedule at ~5 Hz — fast enough for taps, cheap enough to idle.
+        self._ddt_poll_handle = self.loop.call_later(0.2, self._ddt_poll_outbox)
+
+    def _ddt_start_polling(self) -> None:
+        if self._ddt_poll_handle is None:
+            self._ddt_inject_bridge_js()
+            self._ddt_poll_outbox()
+
+    def _ddt_stop_polling(self) -> None:
+        if self._ddt_poll_handle is not None:
+            self._ddt_poll_handle.cancel()
+            self._ddt_poll_handle = None
+
+    # ------------------------------------------------------------------
     # Worker thread
     # ------------------------------------------------------------------
     def _run_session(self, port: str) -> None:
@@ -174,10 +263,17 @@ class PyRenApp(toga.App):
         import mod_globals
         import mod_ui
         from pyren_ios.toga_backend import TogaUIBackend
+        from pyren_ios.ddt_webview import WebViewDDTRenderer
 
         backend = TogaUIBackend(self)
         mod_globals.ui = backend
         mod_ui.install_stdio_capture(backend)
+
+        # Build the WebView renderer on the worker side (safe: it only
+        # schedules work on the main loop; it doesn't touch the widget
+        # from this thread).
+        self._ddt_renderer = WebViewDDTRenderer(self, self._ddt_webview)
+        self.loop.call_soon_threadsafe(self._ddt_start_polling)
 
         mod_globals.os = "ios"
         mod_globals.opt_port = port
@@ -224,6 +320,8 @@ class PyRenApp(toga.App):
     def _on_session_finished(self) -> None:
         self._connect_btn.enabled = True
         self._status_label.text = "Disconnected."
+        self._ddt_stop_polling()
+        self._ddt_renderer = None
 
 
 def main():
