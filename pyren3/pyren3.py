@@ -276,10 +276,13 @@ def optParser():
       mod_globals.opt_csv_sep = ','
       mod_globals.opt_csv_dec = '.'
     
-def main():
-  '''Main function'''
-  optParser()
+def run_interactive():
+  '''Run the diagnostic session interactively.
 
+  Assumes mod_globals.opt_* are already populated — either by optParser()
+  for CLI use, or by a programmatic caller (e.g. the iOS frontend setting
+  options directly before invoking this entry point).
+  '''
   mod_utils.chkDirTree()
   mod_db_manager.find_DBs()
 
@@ -364,6 +367,13 @@ def main():
       
     ecu.show_screens()                                      #show ECU screens
 
-if __name__ == '__main__':  
+
+def main():
+  '''CLI entry point: parse argv and run the interactive session.'''
+  optParser()
+  run_interactive()
+
+
+if __name__ == '__main__':
   main()
-  
+
