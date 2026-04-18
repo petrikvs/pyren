@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DDT</title>
+<style>
+  :root {
+    --bg: #f4f4f6;
+    --fg: #111;
+    --accent: #2979ff;
+    --muted: #888;
+    --danger: #d90000;
+    --panel: #fff;
+    --border: #e1e1e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111; --fg:#eee; --panel:#1a1a1d; --border:#333; --muted:#888; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
+    font: -apple-system-body, system-ui, sans-serif; }
+  header { padding: 10px; border-bottom:1px solid var(--border); background:var(--panel);
+    position:sticky; top:0; }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header .status { color:var(--muted); font-size:12px; margin-top:2px; }
+  #root { padding:10px; display:flex; flex-direction:column; gap:10px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px; }
+  .screen-list { display:flex; flex-wrap:wrap; gap:6px; }
+  .screen-list button { padding:6px 10px; border-radius:6px; border:1px solid var(--border);
+    background:var(--panel); color:var(--fg); }
+  .screen-list button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .widgets { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+  .widget { padding:6px 8px; border-radius:6px; background:var(--panel); border:1px solid var(--border); }
+  .widget .label { font-size:11px; color:var(--muted); }
+  .widget .value { font-size:15px; font-weight:600; }
+  .widget.danger .value { color: var(--danger); }
+  button.action { padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
+    background:var(--accent); color:#fff; font-weight:600; }
+  .log { font-family: ui-monospace, Menlo, monospace; font-size:11px; white-space:pre-wrap;
+    max-height: 200px; overflow-y:auto; }
+  .dtc { border-left:3px solid var(--danger); padding-left:8px; margin:4px 0; }
+  .dtc .code { font-weight:600; }
+  .dtc .desc { font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ecuTitle">DDT</h1>
+  <div class="status" id="status">Waiting for data...</div>
+</header>
+<main id="root">
+  <section class="panel" id="screensPanel" hidden>
+    <div class="label">Screens</div>
+    <div class="screen-list" id="screenList"></div>
+  </section>
+  <section class="panel" id="widgetsPanel" hidden>
+    <div id="screenTitle"></div>
+    <div class="widgets" id="widgets"></div>
+  </section>
+  <section class="panel" id="dtcPanel" hidden>
+    <div class="label">DTCs</div>
+    <div id="dtcs"></div>
+  </section>
+  <section class="panel" id="logPanel">
+    <div class="label">Log</div>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+<script>
+/*
+ * DDT WebView renderer.
+ *
+ * Receives JSON messages from the Python side via window.pyrenReceive(msg),
+ * and posts user actions back via window.webkit.messageHandlers.pyren.postMessage
+ * when running inside WKWebView; falls back to a no-op outside iOS.
+ */
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const state = {
+    categories: [],
+    currentScreen: null,
+    values: {},          // data_name -> {value, color}
+  };
+
+  function post(kind, payload = {}) {
+    const msg = {kind, ...payload};
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pyren) {
+      window.webkit.messageHandlers.pyren.postMessage(msg);
+    } else {
+      console.log("→ py", msg);
+    }
+  }
+
+  function setStatus(text) { $("#status").textContent = text || ""; }
+
+  function setEcu(name, title) {
+    $("#ecuTitle").textContent = title || name || "DDT";
+  }
+
+  function renderCategories(categories) {
+    state.categories = categories || [];
+    const list = $("#screenList");
+    list.innerHTML = "";
+    if (!categories || !categories.length) {
+      $("#screensPanel").hidden = true;
+      return;
+    }
+    $("#screensPanel").hidden = false;
+    for (const cat of categories) {
+      for (const scrName of cat.screens) {
+        const btn = document.createElement("button");
+        btn.textContent = scrName;
+        btn.dataset.scr = scrName;
+        btn.onclick = () => post("select_screen", {name: scrName});
+        list.appendChild(btn);
+      }
+    }
+  }
+
+  function renderScreen(screen) {
+    state.currentScreen = screen;
+    $("#screenTitle").innerHTML =
+      '<h2 style="margin:2px 0;font-size:14px">' + (screen.name || "") + '</h2>';
+    const w = $("#widgets");
+    w.innerHTML = "";
+    $("#widgetsPanel").hidden = !screen || !screen.widgets || !screen.widgets.length;
+    for (const wid of (screen.widgets || [])) {
+      w.appendChild(renderWidget(wid));
+    }
+    for (const btn of document.querySelectorAll(".screen-list button")) {
+      btn.classList.toggle("active", btn.dataset.scr === screen.name);
+    }
+  }
+
+  function renderWidget(wid) {
+    const el = document.createElement("div");
+    el.className = "widget";
+    el.dataset.id = wid.id;
+    el.dataset.kind = wid.kind;
+    const label = wid.props.label || wid.props.name || "";
+    el.innerHTML = '<div class="label">' + label + '</div>' +
+                   '<div class="value" data-role="value">' +
+                   (wid.props.value != null ? wid.props.value : "") +
+                   '</div>';
+    if (wid.kind === "button") {
+      const b = document.createElement("button");
+      b.className = "action";
+      b.textContent = wid.props.label || "Run";
+      b.onclick = () => post("button_pressed", {id: wid.id});
+      el.appendChild(b);
+    }
+    return el;
+  }
+
+  function applyUpdates(updates) {
+    for (const upd of updates || []) {
+      state.values[upd.data_name] = upd;
+      // Find widget bound to this data_name and update its value.
+      const nodes = document.querySelectorAll('[data-id]');
+      for (const n of nodes) {
+        if (n.dataset.id === upd.data_name) {
+          const v = n.querySelector('[data-role=value]');
+          if (v) v.textContent = upd.value;
+          n.classList.toggle("danger", (upd.color || "").toLowerCase() === "red");
+        }
+      }
+    }
+  }
+
+  function appendLog(entry) {
+    const pre = $("#log");
+    const line = (entry.timestamp || "") + " " +
+                 (entry.direction || "") + " " + (entry.text || "");
+    pre.textContent += line + "\n";
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function showDTCs(dtcs) {
+    const box = $("#dtcs");
+    box.innerHTML = "";
+    $("#dtcPanel").hidden = !dtcs || !dtcs.length;
+    for (const d of (dtcs || [])) {
+      const el = document.createElement("div");
+      el.className = "dtc";
+      el.innerHTML = '<div class="code">' + (d.code || "") + ' ' +
+                     '<span style="color:var(--muted)">' + (d.status || "") + '</span></div>' +
+                     '<div class="desc">' + (d.description || "") + '</div>';
+      box.appendChild(el);
+    }
+  }
+
+  // Single entry point the Python side calls.
+  window.pyrenReceive = function(msg) {
+    try {
+      if (typeof msg === "string") msg = JSON.parse(msg);
+      switch (msg.kind) {
+        case "open":           setEcu(msg.ecu_name, msg.title); break;
+        case "close":          setStatus("Session closed"); break;
+        case "set_categories": renderCategories(msg.categories); break;
+        case "show_screen":    renderScreen(msg.screen); break;
+        case "update_values":  applyUpdates(msg.updates); break;
+        case "add_log":        appendLog(msg.entry); break;
+        case "show_dtcs":      showDTCs(msg.dtcs); break;
+        case "set_status":     setStatus(msg.text); break;
+        default: console.warn("unknown msg", msg);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Let the host know we are ready to receive messages.
+  post("ready", {});
+})();
+</script>
+</body>
+</html>
