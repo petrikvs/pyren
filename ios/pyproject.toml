@@ -1,0 +1,45 @@
+# Briefcase configuration for the pyren iOS app.
+#
+# Build on a Mac with:
+#   python3 -m pip install briefcase
+#   cd ios
+#   briefcase create iOS
+#   briefcase build iOS
+#   briefcase run iOS
+#
+# The app bundles the existing pyren3 Python package (a sibling directory
+# ../pyren3) by declaring it as an extra source root below; Briefcase
+# copies every directory listed in `sources` into the app bundle.
+
+[build-system]
+requires = ["briefcase"]
+
+[tool.briefcase]
+project_name = "PyRen"
+bundle = "com.github.petrikvs"
+version = "0.1.0"
+url = "https://github.com/petrikvs/pyren"
+license = "LGPL-3.0-or-later"
+author = "pyren contributors"
+author_email = "none@example.com"
+
+[tool.briefcase.app.pyren_ios]
+formal_name = "PyRen"
+description = "Renault ECU diagnostics over a WiFi ELM327 adapter"
+long_description = """
+PyRen provides diagnostic access to Renault ECUs via a WiFi ELM327 adapter:
+scanning, DTC reading, parameter monitoring, and equipment tests.
+"""
+icon = "src/pyren_ios/resources/pyren_ios"
+sources = [
+    "src/pyren_ios",
+    "../pyren3",
+]
+test_sources = []
+requires = []
+
+[tool.briefcase.app.pyren_ios.iOS]
+requires = [
+    "toga-iOS>=0.4.0",
+    "std-nslog>=1.0.0",
+]
