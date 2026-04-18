@@ -47,6 +47,12 @@ requires = [
 # Expose the app's Documents folder to the Files app (and iTunes/Finder
 # "File Sharing") so users can drop pyrendata_*.zip / DDT2000data_*.zip
 # there via AirDrop, iCloud, Share Sheet, etc.
+#
+# NSLocalNetworkUsageDescription is required on iOS 14+ for any TCP/UDP
+# traffic to LAN addresses — the ELM327 adapter lives on the phone's
+# WiFi network (e.g. 192.168.0.10:35000). Without it, socket.connect()
+# to a local IP returns EPERM / "Operation not permitted".
 [tool.briefcase.app.pyren_ios.iOS.info]
 UIFileSharingEnabled = true
 LSSupportsOpeningDocumentsInPlace = true
+NSLocalNetworkUsageDescription = "PyRen connects to a WiFi ELM327 OBD adapter on your local network to read Renault ECU data."
