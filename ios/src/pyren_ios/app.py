@@ -66,6 +66,21 @@ def _pyren3_source_dir() -> Path:
     raise RuntimeError("pyren3 sources not found in bundle")
 
 
+_README_TEXT = """\
+Drop the following zips into this folder to install pyren's databases:
+
+  * pyrendata_*.zip   — CLIP (Renault ECU database)
+                        top-level entries: EcuRenault, Vehicles, Location, ...
+
+  * DDT2000data_*.zip — DDT (Renault diagnostic screens)
+                        top-level entries: ecus, graphics, images, vehicles
+
+Alternate names are fine — the app auto-detects and renames on Rescan.
+
+This file is safe to delete.
+"""
+
+
 def _work_dir() -> Path:
     """Writable working directory for pyren on iOS.
 
@@ -73,9 +88,19 @@ def _work_dir() -> Path:
     into its source tree. Documents is the standard writable location,
     and it's the one exposed to the Files app via UIFileSharingEnabled —
     users drop imported zips there.
+
+    iOS only surfaces the app's Documents folder in the Files app after
+    it contains at least one file, so we drop a short README on first
+    launch to guarantee the folder shows up.
     """
     d = Path.home() / "Documents"
     d.mkdir(parents=True, exist_ok=True)
+    readme = d / "README.txt"
+    if not readme.exists():
+        try:
+            readme.write_text(_README_TEXT, encoding="utf-8")
+        except OSError:
+            pass
     return d
 
 
