@@ -42,16 +42,18 @@ else:
     except:
       pass
   
-if mod_globals.os != 'android':    
+list_ports = None
+if mod_globals.os != 'android':
   try:
     import serial
     from serial.tools  import list_ports
     #import ply
   except ImportError:
-    print("\n\n\n\tPleas install additional modules")
-    print("\t\t>sudo easy_install pyserial")
-    #print "\t\t>sudo easy_install ply"
-    sys.exit()
+    # pyserial is not available on iOS and is not required for WiFi/TCP
+    # adapters. Desktop users without pyserial still see a helpful hint
+    # when they try to use a serial port (handled at run time below).
+    serial = None
+    list_ports = None
     
 import mod_utils
 import mod_ddt_utils
@@ -226,12 +228,18 @@ def optParser():
   
   if not options.port and mod_globals.os != 'android':
     parser.print_help()
-    iterator = sorted(list(list_ports.comports()))
-    print("")
-    print("Available COM ports:")
-    for port, desc, hwid in iterator:
-      print("%-30s \n\tdesc: %s \n\thwid: %s" % (port,desc,hwid)) #.decode("windows-1251")
-    print("")
+    if list_ports is not None:
+      iterator = sorted(list(list_ports.comports()))
+      print("")
+      print("Available COM ports:")
+      for port, desc, hwid in iterator:
+        print("%-30s \n\tdesc: %s \n\thwid: %s" % (port,desc,hwid)) #.decode("windows-1251")
+      print("")
+    else:
+      print("")
+      print("pyserial is not installed; only WiFi/TCP adapters are supported.")
+      print("Use -p <ip>:<port>, e.g. -p 192.168.0.10:35000")
+      print("")
     exit()
   else:
     mod_globals.opt_port      = options.port

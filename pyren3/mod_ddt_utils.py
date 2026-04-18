@@ -8,8 +8,12 @@ import mod_db_manager
 from operator import itemgetter
 from copy import deepcopy
 
+serial = None
 if mod_globals.os != 'android':
-    import serial
+    try:
+        import serial
+    except ImportError:
+        serial = None
 
 try:
     import pickle as pickle
@@ -91,6 +95,8 @@ def multikeysort(items, columns):
 
 def getPortList():
     ret = []
+    if serial is None:
+        return ret
     iterator = sorted(list(serial.tools.list_ports.comports()))
     for port, desc, hwid in iterator:
         try:

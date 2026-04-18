@@ -26,9 +26,18 @@ except:
     except:
         pass
 
+# pyserial is unavailable on iOS and optional on android. Import it
+# defensively so pyren loads in WiFi/TCP-only environments; runtime
+# serial-port use is already guarded by port-type checks elsewhere.
+serial = None
+list_ports = None
 if mod_globals.os != 'android':
-    import serial  # sudo easy_install pyserial
-    from serial.tools import list_ports
+    try:
+        import serial  # sudo easy_install pyserial
+        from serial.tools import list_ports
+    except ImportError:
+        serial = None
+        list_ports = None
 
 # List of commands which may require to open another Developer session (option --dev)
 DevList = ['27', '28', '2E', '30', '31', '32', '34', '35', '36', '37', '3B', '3D']
@@ -255,16 +264,22 @@ class Port:
         else:
             self.portName = portName
             self.portType = 0
+            if serial is None:
+                print("Serial adapters are not supported in this build.")
+                print("Use a WiFi ELM327 adapter, e.g. -p 192.168.0.10:35000")
+                mod_globals.opt_demo = True
+                exit()
             try:
                 self.hdr = serial.Serial (self.portName, baudrate=speed, timeout=portTimeout)
             except:  # serial.SerialException:
                 print("ELM not connected or wrong COM port defined.")
-                iterator = sorted (list (list_ports.comports ()))
-                print("")
-                print("Available COM ports:")
-                for port, desc, hwid in iterator:
-                    print("%-30s \n\tdesc: %s \n\thwid: %s" % (port, desc, hwid))
-                print("")
+                if list_ports is not None:
+                    iterator = sorted (list (list_ports.comports ()))
+                    print("")
+                    print("Available COM ports:")
+                    for port, desc, hwid in iterator:
+                        print("%-30s \n\tdesc: %s \n\thwid: %s" % (port, desc, hwid))
+                    print("")
                 mod_globals.opt_demo = True
                 exit ()
             # print self.hdr.BAUDRATES
