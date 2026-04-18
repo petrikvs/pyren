@@ -17,8 +17,9 @@ from mod_elm                import snat
 from mod_elm                import dnat
 from mod_elm                import AllowedList
 from mod_elm                import pyren_time
-if mod_globals.os != 'android':    
-  from mod_ddt                import DDT
+# mod_ddt depends on tkinter (unavailable on android/iOS). Import lazily
+# inside show_screens() so the core loads without tkinter; DDT becomes
+# a runtime-optional feature.
 
 import mod_globals
 import mod_db_manager
@@ -1071,7 +1072,12 @@ class ECU:
         continue
       
       if choice[0][:3]=="DDT":
-        langmap = self.getLanguageMap()  
+        try:
+          from mod_ddt import DDT
+        except ImportError as e:
+          print("DDT mode unavailable on this platform (%s)" % e)
+          continue
+        langmap = self.getLanguageMap()
         ddt = DDT(self.elm, self.ecudata, langmap)
         del(ddt)
         #gc.collect ()
