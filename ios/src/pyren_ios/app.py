@@ -50,14 +50,11 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
+from pyren_ios.db_manager import DatabaseManager
 
-def _bootstrap_pyren_path() -> None:
-    """Ensure pyren3 sources are importable.
 
-    Briefcase bundles ../pyren3 alongside the pyren_ios package inside
-    the app resources. We resolve that directory at runtime and prepend
-    it to sys.path.
-    """
+def _pyren3_source_dir() -> Path:
+    """Locate the bundled pyren3 sources (read-only inside the .app)."""
     here = Path(__file__).resolve().parent
     candidates = [
         here.parent / "pyren3",           # when bundled flat next to pyren_ios
@@ -65,10 +62,31 @@ def _bootstrap_pyren_path() -> None:
     ]
     for cand in candidates:
         if cand.is_dir():
-            sys.path.insert(0, str(cand))
-            os.chdir(str(cand))
-            return
+            return cand
     raise RuntimeError("pyren3 sources not found in bundle")
+
+
+def _work_dir() -> Path:
+    """Writable working directory for pyren on iOS.
+
+    The app bundle is read-only, so pyren can't write cache/ or logs/
+    into its source tree. Documents is the standard writable location,
+    and it's the one exposed to the Files app via UIFileSharingEnabled —
+    users drop imported zips there.
+    """
+    d = Path.home() / "Documents"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _bootstrap_pyren_path() -> None:
+    """Put pyren3 on sys.path and chdir into the writable work dir.
+
+    pyren uses relative paths everywhere (cache/, logs/, pyrendata*.zip),
+    so the cwd *is* the pyren data directory.
+    """
+    sys.path.insert(0, str(_pyren3_source_dir()))
+    os.chdir(str(_work_dir()))
 
 
 class PyRenApp(toga.App):
@@ -80,6 +98,35 @@ class PyRenApp(toga.App):
         self._pending_answer_cb = None
         self._ddt_renderer = None
         self._ddt_poll_handle = None
+        self._db_manager = DatabaseManager(_work_dir())
+
+        # --- Databases panel --------------------------------------------
+        self._clip_status = toga.Label("CLIP: —", style=Pack(padding=4))
+        self._ddt_status = toga.Label("DDT: —", style=Pack(padding=4))
+        self._import_clip_btn = toga.Button(
+            "Import CLIP",
+            on_press=self._on_import_clip,
+            style=Pack(flex=1, padding=4),
+        )
+        self._import_ddt_btn = toga.Button(
+            "Import DDT",
+            on_press=self._on_import_ddt,
+            style=Pack(flex=1, padding=4),
+        )
+        self._rescan_btn = toga.Button(
+            "Rescan",
+            on_press=self._on_rescan_pressed,
+            style=Pack(flex=1, padding=4),
+        )
+        db_buttons = toga.Box(
+            children=[self._import_clip_btn, self._import_ddt_btn, self._rescan_btn],
+            style=Pack(direction=ROW),
+        )
+        db_panel = toga.Box(
+            children=[self._clip_status, self._ddt_status, db_buttons],
+            style=Pack(direction=COLUMN),
+        )
+        self._refresh_db_status()
 
         # --- Session tab -------------------------------------------------
         self._log = toga.MultilineTextInput(
@@ -120,7 +167,7 @@ class PyRenApp(toga.App):
             style=Pack(direction=ROW),
         )
         session_tab = toga.Box(
-            children=[header, self._status_label, self._log, self._prompt_box],
+            children=[db_panel, header, self._status_label, self._log, self._prompt_box],
             style=Pack(direction=COLUMN),
         )
 
@@ -214,6 +261,87 @@ class PyRenApp(toga.App):
         self._prompt_label.text = ""
         self._prompt_input.value = ""
         cb(answer)
+
+    # ------------------------------------------------------------------
+    # Database import handlers
+    # ------------------------------------------------------------------
+    def _refresh_db_status(self) -> None:
+        st = self._db_manager.scan()
+        if st.clip is not None:
+            size_mb = st.clip.stat().st_size / (1024 * 1024)
+            self._clip_status.text = f"CLIP: {st.clip.name} ({size_mb:.1f} MB)"
+        else:
+            self._clip_status.text = "CLIP: (not imported)"
+        if st.ddt is not None:
+            size_mb = st.ddt.stat().st_size / (1024 * 1024)
+            self._ddt_status.text = f"DDT: {st.ddt.name} ({size_mb:.1f} MB)"
+        else:
+            self._ddt_status.text = "DDT: (not imported)"
+
+    def _on_rescan_pressed(self, widget) -> None:
+        self._refresh_db_status()
+
+    async def _on_import_clip(self, widget) -> None:
+        await self._import_flow("clip")
+
+    async def _on_import_ddt(self, widget) -> None:
+        await self._import_flow("ddt")
+
+    async def _import_flow(self, expected_kind: str) -> None:
+        """Pick a zip, classify it, copy into the work dir."""
+        try:
+            picked = await self.main_window.dialog(
+                toga.OpenFileDialog(
+                    title=f"Select {expected_kind.upper()} zip",
+                    file_types=["zip"],
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            await self.main_window.dialog(
+                toga.ErrorDialog(
+                    "File picker unavailable",
+                    (
+                        f"{exc!r}\n\n"
+                        "Drop the zip into the PyRen folder via the iOS "
+                        "Files app (AirDrop, iCloud, Share Sheet), then "
+                        "tap Rescan."
+                    ),
+                )
+            )
+            return
+        if not picked:
+            return
+
+        src = Path(str(picked))
+        kind = self._db_manager.classify(src)
+        if kind is None:
+            await self.main_window.dialog(
+                toga.ErrorDialog(
+                    "Unrecognised zip",
+                    "The selected zip doesn't look like a CLIP "
+                    "(pyrendata) or DDT database.",
+                )
+            )
+            return
+        if kind != expected_kind:
+            await self.main_window.dialog(
+                toga.InfoDialog(
+                    "Kind mismatch",
+                    f"Detected a {kind.upper()} zip while importing as "
+                    f"{expected_kind.upper()}; importing as {kind.upper()}.",
+                )
+            )
+
+        try:
+            dest = self._db_manager.import_zip(src, kind)
+        except Exception as exc:  # noqa: BLE001
+            await self.main_window.dialog(
+                toga.ErrorDialog("Import failed", repr(exc))
+            )
+            return
+
+        self._refresh_db_status()
+        self.ui_append_log(f"Imported {kind.upper()}: {dest.name}\n")
 
     # ------------------------------------------------------------------
     # DDT WebView bridge (JS <-> Python)

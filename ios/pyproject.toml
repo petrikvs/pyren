@@ -43,3 +43,10 @@ requires = [
     "toga-iOS>=0.4.0",
     "std-nslog>=1.0.0",
 ]
+
+# Expose the app's Documents folder to the Files app (and iTunes/Finder
+# "File Sharing") so users can drop pyrendata_*.zip / DDT2000data_*.zip
+# there via AirDrop, iCloud, Share Sheet, etc.
+[tool.briefcase.app.pyren_ios.iOS.info]
+UIFileSharingEnabled = true
+LSSupportsOpeningDocumentsInPlace = true

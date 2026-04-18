@@ -24,6 +24,14 @@ except:
     import pickle
 
 def searchddtroot():
+    # find_DBs() may have already pointed ddtroot at a zip (iOS/Android) or
+    # an extracted folder outside the legacy `../DDT2000data` layout.
+    # Don't clobber it in that case.
+    if mod_globals.ddt_arc:
+        return
+    current = mod_globals.ddtroot
+    if current and os.path.isdir(os.path.join(current, 'ecus')):
+        return
     if not os.path.exists('../DDT2000data/ecus'):
         mod_globals.ddtroot = '..'
     else:
