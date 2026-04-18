@@ -22,6 +22,30 @@ import sys
 import threading
 from pathlib import Path
 
+# iOS simulator/device returns a locale string Python's locale module
+# cannot resolve; Toga unconditionally calls locale.setlocale(LC_ALL, "")
+# in App.__init__, which raises locale.Error and kills the app before
+# startup(). Patch here (before toga is imported) so it falls back to C.
+import locale as _locale
+
+os.environ.setdefault("LANG", "en_US.UTF-8")
+os.environ.setdefault("LC_ALL", "en_US.UTF-8")
+
+_orig_setlocale = _locale.setlocale
+
+
+def _safe_setlocale(category, loc=None):
+    try:
+        return _orig_setlocale(category, loc)
+    except _locale.Error:
+        try:
+            return _orig_setlocale(category, "C")
+        except _locale.Error:
+            return None
+
+
+_locale.setlocale = _safe_setlocale
+
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
