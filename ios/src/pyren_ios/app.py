@@ -125,11 +125,16 @@ class PyRenApp(toga.App):
         )
 
         # --- DDT tab (WebView) ------------------------------------------
+        # iOS Toga WebView only accepts http(s) URLs, not file://. Load the
+        # bundled HTML via set_content() instead — root_url is just the base
+        # for relative resource URLs, which we don't use (everything is inline).
+        self._ddt_webview = toga.WebView(style=Pack(flex=1))
         ddt_html_path = Path(__file__).resolve().parent / "web" / "ddt.html"
-        self._ddt_webview = toga.WebView(
-            url=ddt_html_path.as_uri() if ddt_html_path.exists() else "",
-            style=Pack(flex=1),
-        )
+        if ddt_html_path.exists():
+            self._ddt_webview.set_content(
+                "https://pyren.local/",
+                ddt_html_path.read_text(encoding="utf-8"),
+            )
         ddt_tab = toga.Box(
             children=[self._ddt_webview],
             style=Pack(direction=COLUMN),
