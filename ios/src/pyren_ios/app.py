@@ -114,6 +114,33 @@ def _bootstrap_pyren_path() -> None:
     os.chdir(str(_work_dir()))
 
 
+def _trigger_local_network_permission() -> None:
+    """Force iOS to show the Local Network permission prompt.
+
+    iOS 14+ requires user consent for any LAN traffic. A plain
+    socket.connect() to a LAN IP often fails silently with EPERM
+    *without* showing the system prompt — Apple's heuristics only
+    trigger it for Bonjour/mDNS-style discovery traffic. Sending a
+    UDP broadcast is enough to flip the switch: iOS sees the packet,
+    raises the prompt, and once the user accepts, subsequent TCP
+    connects to LAN peers succeed.
+
+    Safe to call repeatedly; does nothing once permission is granted
+    (or denied). Errors are swallowed — this is a best-effort nudge.
+    """
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.settimeout(0.5)
+            s.sendto(b"\x00", ("255.255.255.255", 1))
+        finally:
+            s.close()
+    except OSError:
+        pass
+
+
 class PyRenApp(toga.App):
     # ------------------------------------------------------------------
     # Toga lifecycle
@@ -224,6 +251,11 @@ class PyRenApp(toga.App):
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self._tabs
         self.main_window.show()
+
+        # Nudge iOS into showing the Local Network permission prompt
+        # up front, so TCP connect to the ELM adapter isn't blocked by
+        # EPERM later. See _trigger_local_network_permission() for why.
+        _trigger_local_network_permission()
 
     # ------------------------------------------------------------------
     # UI helpers called from the Toga backend (always on main thread)
@@ -413,6 +445,9 @@ class PyRenApp(toga.App):
     # ------------------------------------------------------------------
     def _run_session(self, port: str) -> None:
         _bootstrap_pyren_path()
+        # Safety net: re-trigger the Local Network prompt in case the
+        # user hadn't seen/handled it yet by the time they pressed Connect.
+        _trigger_local_network_permission()
 
         # Import inside the worker so the worker thread owns the pyren
         # modules' import-time side effects (chdir, etc.).

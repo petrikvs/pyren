@@ -236,8 +236,8 @@ class Port:
                 self.hdr.settimeout(3)
                 self.hdr.connect ((self.ipaddr, self.tcpprt))
                 self.hdr.setblocking (True)
-            except:
-                print(" \n\nERROR: Can't connect to WiFi ELM\n\n")
+            except Exception as e:
+                print(f" \n\nERROR: Can't connect to WiFi ELM at {portName}: {e!r}\n\n")
                 mod_globals.opt_demo = True
                 sys.exit()
         elif mod_globals.os == 'android' and ( portName == 'bt' or MAC != None ):
