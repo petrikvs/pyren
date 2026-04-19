@@ -274,20 +274,12 @@ def loadDumpToELM( ecuname, elm ):
 
 def chkDirTree():
     '''Check direcories'''
-    if not os.path.exists('./cache'):
-        os.makedirs('./cache')
-    if not os.path.exists('./csv'):
-        os.makedirs('./csv')
-    if not os.path.exists('./logs'):
-        os.makedirs('./logs')
-    if not os.path.exists('./dumps'):
-        os.makedirs('./dumps')
-    if not os.path.exists('./macro'):
-        os.makedirs('./macro')
-    if not os.path.exists('./doc'):
-        os.makedirs('./doc')
-    if not os.path.exists(mod_globals.mtcsave_dir):
-        os.makedirs(mod_globals.mtcsave_dir)
+    for d in (mod_globals.cache_dir, mod_globals.csv_dir,
+              mod_globals.log_dir, mod_globals.dumps_dir,
+              mod_globals.macro_dir, mod_globals.doc_dir,
+              mod_globals.mtcsave_dir):
+        if not os.path.exists(d):
+            os.makedirs(d)
 
 def getVIN( de, elm, getFirst = False ):
   ''' getting VINs from every ECU     '''

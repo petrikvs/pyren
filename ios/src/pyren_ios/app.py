@@ -476,9 +476,20 @@ class PyRenApp(toga.App):
         self.loop.call_soon_threadsafe(self._ddt_start_polling)
 
         mod_globals.os = "ios"
-        # pyren's default '../MTCSAVE' lands at the non-writable sandbox
-        # root on iOS — point it at Documents/MTCSAVE instead.
-        mod_globals.mtcsave_dir = str(_work_dir() / "MTCSAVE")
+        # Point every pyren work-dir global at the pre-created absolute
+        # paths under Documents. Relative './cache' makedirs intermittently
+        # hit EPERM in the iOS sandbox even with cwd in Documents —
+        # using absolute paths sidesteps that, and they survive cwd
+        # changes made by sub-modules.
+        _d = _work_dir()
+        mod_globals.user_data_dir = str(_d) + "/"
+        mod_globals.cache_dir = str(_d / "cache") + "/"
+        mod_globals.csv_dir = str(_d / "csv") + "/"
+        mod_globals.log_dir = str(_d / "logs") + "/"
+        mod_globals.dumps_dir = str(_d / "dumps") + "/"
+        mod_globals.macro_dir = str(_d / "macro") + "/"
+        mod_globals.doc_dir = str(_d / "doc") + "/"
+        mod_globals.mtcsave_dir = str(_d / "MTCSAVE")
         mod_globals.opt_port = port
         mod_globals.opt_speed = 38400
         mod_globals.opt_rate = 38400

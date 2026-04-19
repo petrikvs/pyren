@@ -302,12 +302,7 @@ def run_interactive():
   for CLI use, or by a programmatic caller (e.g. the iOS frontend setting
   options directly before invoking this entry point).
   '''
-  # iOS frontend pre-creates every pyren work dir via absolute paths
-  # in ~/Documents. Relative makedirs here randomly hit EPERM under
-  # the iOS sandbox (observed even with cwd already in Documents),
-  # so skip chkDirTree entirely — the dirs already exist.
-  if mod_globals.os != 'ios':
-    mod_utils.chkDirTree()
+  mod_utils.chkDirTree()
   mod_db_manager.find_DBs()
 
   print('Opening ELM')
