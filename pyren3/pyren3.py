@@ -4,11 +4,19 @@ import sys, os
 import mod_globals
 import mod_db_manager
 
-mod_globals.os = os.name
-if "com.termux" in os.environ.get("PREFIX", ""):
-    mod_globals.os = 'android'
+# Respect a frontend-provided mod_globals.os (e.g. the iOS app sets "ios"
+# before importing pyren3). Only auto-detect when nothing was set.
+if not mod_globals.os:
+    mod_globals.os = os.name
+    if "com.termux" in os.environ.get("PREFIX", ""):
+        mod_globals.os = 'android'
 
-os.chdir(os.path.dirname(os.path.realpath(sys.argv[0])))
+# pyren3 historically chdirs next to its own script so relative paths
+# (./cache, ../MTCSAVE, pyrendata*.zip in .. ) resolve. On iOS the script
+# lives inside the read-only app bundle — the frontend has already chdir'd
+# into the writable Documents dir, so don't clobber it.
+if mod_globals.os != 'ios' and sys.platform != 'ios':
+    os.chdir(os.path.dirname(os.path.realpath(sys.argv[0])))
 
 import pickle
 
