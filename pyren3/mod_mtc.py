@@ -146,7 +146,7 @@ def acf_getMTC( VIN, preferFile=False ):
 
   
   #check and prepare folder for loading or saving data
-  mtc_dir = '../MTCSAVE/'+VIN
+  mtc_dir = os.path.join(mod_globals.mtcsave_dir, VIN)
   mod_globals.mtcdir = mtc_dir
   if not os.path.exists(mtc_dir):
     os.makedirs(mtc_dir)  

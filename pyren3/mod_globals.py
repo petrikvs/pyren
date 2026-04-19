@@ -53,6 +53,7 @@ ext_cur_DTC = "000000"
 
 none_val = "None"
 
+mtcsave_dir = "../MTCSAVE"  # root for per-VIN ACF dumps/scripts; frontends may override (iOS puts it inside Documents)
 mtcdir = "../MTCSAVE/VIN"
 user_data_dir = "./"
 cache_dir = "./cache/"

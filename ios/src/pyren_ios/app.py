@@ -102,11 +102,8 @@ def _work_dir() -> Path:
     """
     d = Path.home() / "Documents"
     d.mkdir(parents=True, exist_ok=True)
-    for sub in ("cache", "csv", "logs", "dumps", "macro", "doc"):
+    for sub in ("cache", "csv", "logs", "dumps", "macro", "doc", "MTCSAVE"):
         (d / sub).mkdir(exist_ok=True)
-    # pyren's chkDirTree() also tries to make ../MTCSAVE, which on iOS
-    # lands at the sandbox root — not writable. chkDirTree is patched
-    # to swallow EPERM there; we don't pre-create it.
     readme = d / "README.txt"
     if not readme.exists():
         try:
@@ -479,6 +476,9 @@ class PyRenApp(toga.App):
         self.loop.call_soon_threadsafe(self._ddt_start_polling)
 
         mod_globals.os = "ios"
+        # pyren's default '../MTCSAVE' lands at the non-writable sandbox
+        # root on iOS — point it at Documents/MTCSAVE instead.
+        mod_globals.mtcsave_dir = str(_work_dir() / "MTCSAVE")
         mod_globals.opt_port = port
         mod_globals.opt_speed = 38400
         mod_globals.opt_rate = 38400

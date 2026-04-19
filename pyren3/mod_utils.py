@@ -274,18 +274,20 @@ def loadDumpToELM( ecuname, elm ):
 
 def chkDirTree():
     '''Check direcories'''
-    # On iOS ../MTCSAVE lands at the Data-sandbox root, which isn't
-    # writable (only Documents/Library/tmp are). Best-effort each dir
-    # so one failing path doesn't abort startup — features that
-    # actually need MTCSAVE will surface their own error later.
-    for d in ('./cache', './csv', './logs', './dumps', './macro', './doc',
-              '../MTCSAVE'):
-        if os.path.exists(d):
-            continue
-        try:
-            os.makedirs(d)
-        except OSError as e:
-            print(f"chkDirTree: skipped {d}: {e}")
+    if not os.path.exists('./cache'):
+        os.makedirs('./cache')
+    if not os.path.exists('./csv'):
+        os.makedirs('./csv')
+    if not os.path.exists('./logs'):
+        os.makedirs('./logs')
+    if not os.path.exists('./dumps'):
+        os.makedirs('./dumps')
+    if not os.path.exists('./macro'):
+        os.makedirs('./macro')
+    if not os.path.exists('./doc'):
+        os.makedirs('./doc')
+    if not os.path.exists(mod_globals.mtcsave_dir):
+        os.makedirs(mod_globals.mtcsave_dir)
 
 def getVIN( de, elm, getFirst = False ):
   ''' getting VINs from every ECU     '''

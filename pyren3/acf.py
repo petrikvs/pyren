@@ -313,7 +313,7 @@ def main():
         print("%2s : %s :   " % (m['idf'],m['sref']))      
   
   if mod_globals.opt_exp:
-    with open( '../MTCSAVE/'+VIN+'/mtcexp.txt', 'w' ) as f:
+    with open( os.path.join(mod_globals.mtcsave_dir, VIN, 'mtcexp.txt'), 'w' ) as f:
       for option in sorted(mtc):
         res = acf_MTC_optionsExplorer( module_list, option, mtc )
         for l in res:
