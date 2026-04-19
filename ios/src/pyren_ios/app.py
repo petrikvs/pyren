@@ -92,9 +92,20 @@ def _work_dir() -> Path:
     iOS only surfaces the app's Documents folder in the Files app after
     it contains at least one file, so we drop a short README on first
     launch to guarantee the folder shows up.
+
+    We also pre-create every subdirectory pyren's chkDirTree() wants.
+    On iOS, relative os.makedirs() calls from this path occasionally
+    fail with EPERM (likely a /var vs /private/var canonicalization
+    quirk in the sandbox check) — creating them here via absolute
+    paths sidesteps that path entirely, and chkDirTree() then short-
+    circuits on its os.path.exists() guards.
     """
     d = Path.home() / "Documents"
     d.mkdir(parents=True, exist_ok=True)
+    for sub in ("cache", "csv", "logs", "dumps", "macro", "doc"):
+        (d / sub).mkdir(exist_ok=True)
+    # pyren also makes ../MTCSAVE relative to cwd.
+    (d.parent / "MTCSAVE").mkdir(exist_ok=True)
     readme = d / "README.txt"
     if not readme.exists():
         try:
