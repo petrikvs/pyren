@@ -104,8 +104,9 @@ def _work_dir() -> Path:
     d.mkdir(parents=True, exist_ok=True)
     for sub in ("cache", "csv", "logs", "dumps", "macro", "doc"):
         (d / sub).mkdir(exist_ok=True)
-    # pyren also makes ../MTCSAVE relative to cwd.
-    (d.parent / "MTCSAVE").mkdir(exist_ok=True)
+    # pyren's chkDirTree() also tries to make ../MTCSAVE, which on iOS
+    # lands at the sandbox root — not writable. chkDirTree is patched
+    # to swallow EPERM there; we don't pre-create it.
     readme = d / "README.txt"
     if not readme.exists():
         try:
