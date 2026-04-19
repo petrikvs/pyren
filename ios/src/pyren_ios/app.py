@@ -497,13 +497,25 @@ class PyRenApp(toga.App):
         mod_globals.opt_csv_sep = ","
         mod_globals.opt_csv_dec = "."
 
+        # Surface where pyren is running from + which DBs it can see, so a
+        # PermissionError from a stray mkdir/open is traceable without a
+        # device-side debugger.
+        backend.writeln(f"cwd: {os.getcwd()}")
+        try:
+            import mod_db_manager as _dbm
+            backend.writeln(f"DB dir scan: {sorted(p.name for p in self._db_manager.work_dir.glob('*.zip'))}")
+        except Exception:
+            pass
+
         try:
             import pyren3
             pyren3.run_interactive()
         except SystemExit:
             backend.writeln("Session ended.")
         except Exception as exc:  # noqa: BLE001
+            import traceback
             backend.writeln(f"ERROR: {exc!r}")
+            backend.writeln(traceback.format_exc())
         finally:
             mod_ui.uninstall_stdio_capture()
             self.loop.call_soon_threadsafe(self._on_session_finished)
